@@ -6,6 +6,7 @@ const OnWater = require('onwater');
 const distance = require('google-distance-matrix');
 const geocoder = require('geocoder');
 const dotenv = require('dotenv');
+const async = require('async');
 
 dotenv.config();
 
@@ -382,7 +383,22 @@ function getAllDistances() {
       console.log(err);
       process.exit();
     } else {
-      locs.forEach(loc => {
+      // locs.forEach(loc => {
+      //   let points = [];
+      //   loc.points.forEach(point => {
+      //     if (point.onLand) {
+      //       let pointString = point.lat.toString() + ',' + point.lng.toString();
+      //       points.push(pointString);
+      //     }
+      //   });
+      //   distance.matrix(points, points, function (err, distances) {
+      //     if (!err) {
+      //       loc.latestDistances = distances;
+      //       saveDistances(loc);
+      //     } else console.log(err);
+      //   })
+      // });
+      async.each(locs, function (loc, callback) {
         let points = [];
         loc.points.forEach(point => {
           if (point.onLand) {
@@ -390,19 +406,41 @@ function getAllDistances() {
             points.push(pointString);
           }
         });
-        distance.matrix(points, points, function (err, distances) {
-          if (!err) {
-            loc.latestDistances = distances;
-            saveDistances(loc);
-          } else console.log(err);
-        })
-      });
+        getDistanceMatrix(loc, points, function () {
+          //async call is done, alert via cb
+          callback();
+        });
+        // distance.matrix(points, points, function (err, distances) {
+        //   if (err) console.log(err);
+        //   loc.latestDistances = distances;
+        //   saveDistances(loc);
+        //   callback();
+        // });
+        // console.log('processing');
+        // callback();
+      },
+        function (err) {
+          console.log('all done');
+          mongoose.disconnect();
+        }
+      );
     }
   });
 }
 
+async function getDistanceMatrix(loc, points, callback) {
+  distance.matrix(points, points, function (err, distances) {
+    if (!err) {
+      loc.latestDistances = distances;
+      saveDistances(loc, function () {
+        callback();
+      });
+    } else console.log(err);
+  });
+}
+
 // formats and saves distance matrix to location in DB
-function saveDistances(loc) {
+async function saveDistances(loc, callback) {
   let validCount = 0, totalTime = 0, totalDistance = 0;
   let minDistance = {
     value: 0,
@@ -483,8 +521,15 @@ function saveDistances(loc) {
     '$push': {
       'trafficData': latestReading
     }
-  }, function(err, doc) {
-      console.log('Added latest reading for ' + loc.name);
+  }, function (err, doc) {
+      if (err) {
+        console.log(err);
+        callback();
+      } else {
+        console.log('Added latest reading for ' + loc.name);
+        callback();
+      }
+
     });
 
 
