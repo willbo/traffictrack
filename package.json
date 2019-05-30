@@ -1,0 +1,26 @@
+{
+  "name": "traffictrack",
+  "version": "1.0.0",
+  "description": "tracks traffic across a number of cities",
+  "main": "traffictrack.js",
+  "dependencies": {
+    "dotenv": "^8.0.0",
+    "express": "^4.17.1",
+    "geocoder": "^0.2.3",
+    "google-distance-matrix": "^1.1.1",
+    "minimist": "^1.2.0",
+    "mongoose": "^5.5.11",
+    "node-cron": "^2.0.3",
+    "onwater": "^1.0.0"
+  },
+  "engines": {
+    "node": "10.13.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node traffictrack.js -t run"
+  },
+  "author": "Bill Kiernan",
+  "license": "ISC"
+}
