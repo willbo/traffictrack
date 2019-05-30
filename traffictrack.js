@@ -383,21 +383,6 @@ function getAllDistances() {
       console.log(err);
       process.exit();
     } else {
-      // locs.forEach(loc => {
-      //   let points = [];
-      //   loc.points.forEach(point => {
-      //     if (point.onLand) {
-      //       let pointString = point.lat.toString() + ',' + point.lng.toString();
-      //       points.push(pointString);
-      //     }
-      //   });
-      //   distance.matrix(points, points, function (err, distances) {
-      //     if (!err) {
-      //       loc.latestDistances = distances;
-      //       saveDistances(loc);
-      //     } else console.log(err);
-      //   })
-      // });
       async.each(locs, function (loc, callback) {
         let points = [];
         loc.points.forEach(point => {
@@ -410,18 +395,10 @@ function getAllDistances() {
           //async call is done, alert via cb
           callback();
         });
-        // distance.matrix(points, points, function (err, distances) {
-        //   if (err) console.log(err);
-        //   loc.latestDistances = distances;
-        //   saveDistances(loc);
-        //   callback();
-        // });
-        // console.log('processing');
-        // callback();
       },
         function (err) {
           console.log('all done');
-          mongoose.disconnect();
+          // mongoose.disconnect();
         }
       );
     }
