@@ -8,12 +8,18 @@ const geocoder = require('geocoder');
 const dotenv = require('dotenv');
 const async = require('async');
 
+
+
 dotenv.config();
 
 const googleAPIKey = process.env.MAPS_API_KEY;
 
 mongoose.set('useFindAndModify', false);
 distance.key(googleAPIKey);
+distance.traffic_model('best_guess');
+distance.mode('driving');
+distance.units('metric');
+
 
 
 
@@ -47,6 +53,8 @@ const LocationSchema = new Schema({
       trips: Number,
       averageTime: Number,
       averageDistance: Number,
+      totalTime: Number,
+      totalDistance: Number,
       minTime: {
         value: Number,
         distance: Number,
@@ -155,6 +163,7 @@ function connectToDB() {
       case 'get':
         if (args.name)
           getDistances(args.name);
+          // getGdistance(args.name);
         else getAllDistances();
         break;
       case 'run':
@@ -268,6 +277,9 @@ function getDistances(location) {
       console.log(err);
       process.exit();
     } else {
+      const unixNow = Math.round(new Date(Date.now()) / 1000);
+      distance.departure_time(unixNow);
+      // console.log(unixNow);
       let points = [];
       loc.points.forEach(point => {
         if (point.onLand) {
@@ -286,7 +298,7 @@ function getDistances(location) {
 
 // formats and logs results of distance matrix to console
 function logDistances(distances) {
-  // console.log(distances);
+  // console.log(distances.rows[0].elements[1]);
   let validCount = 0, totalTime = 0, totalDistance = 0;
   let minDistance = {
     value: 0,
@@ -317,7 +329,7 @@ function logDistances(distances) {
       if(distances.rows[origin].elements[destination].status === 'OK'){
         let distance = distances.rows[origin].elements[destination].distance.value;
         if (distance > 0) {
-          let time = distances.rows[origin].elements[destination].duration.value;
+          let time = distances.rows[origin].elements[destination].duration_in_traffic.value;
           if(distance > maxDistance.value){
             maxDistance.value = distance;
             maxDistance.time = time;
@@ -352,7 +364,9 @@ function logDistances(distances) {
   let averageDistance = (totalDistance / validCount);
   console.log('\n------------------------------------------------------');
   console.log('\nAverage trip time is ' + averageTime.toString().toHHMMSS() + ' based on ' + validCount + ' trips');
-  console.log('\nAverage distance is ' + (averageDistance / 1000).toFixed(2)  + ' Km based on ' + validCount + ' trips');
+  console.log('\nAverage distance is ' + (averageDistance / 1000).toFixed(2) + ' Km based on ' + validCount + ' trips');
+  console.log('\nTotal Time is ' + totalTime.toString().toHHMMSS());
+  console.log('\nTotal distance is ' + (totalDistance / 1000).toFixed(2) + ' Km');
   console.log('\n------------------------------------------------------');
   console.log('\nMIN TRIP DISTANCE: ' + minDistance.value / 1000 + ' Km (' + minDistance.time.toString().toHHMMSS() + ')');
   console.log(minDistance.from);
@@ -378,11 +392,14 @@ function logDistances(distances) {
 
 // gets distance matrix for each location in DB and saves to documents
 function getAllDistances() {
+
   Location.find({}, function (err, locs) {
     if (err) {
       console.log(err);
       process.exit();
     } else {
+      const unixNow = Math.round(new Date(Date.now()) / 1000);
+      distance.departure_time(unixNow);
       async.each(locs, function (loc, callback) {
         let points = [];
         loc.points.forEach(point => {
@@ -448,7 +465,7 @@ async function saveDistances(loc, callback) {
       if (loc.latestDistances.rows[origin].elements[destination].status === 'OK') {
         let distance = loc.latestDistances.rows[origin].elements[destination].distance.value;
         if (distance > 0) {
-          let time = loc.latestDistances.rows[origin].elements[destination].duration.value;
+          let time = loc.latestDistances.rows[origin].elements[destination].duration_in_traffic.value;
           if (distance > maxDistance.value) {
             maxDistance.value = distance;
             maxDistance.time = time;
@@ -487,6 +504,8 @@ async function saveDistances(loc, callback) {
     trips: validCount,
     averageTime: averageTime,
     averageDistance: averageDistance,
+    totalTime: totalTime,
+    totalDistance: totalDistance,
     minTime: minTime,
     maxTime: maxTime,
     minDistance: minDistance,
