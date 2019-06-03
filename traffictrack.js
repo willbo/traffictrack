@@ -39,6 +39,8 @@ const LocationSchema = new Schema({
   lat: Number,
   lng: Number,
   country: String,
+  validPoints: Number,
+  trips: Number,
   points: [
     {
       name: String,
@@ -148,6 +150,14 @@ function logArgHelp() {
   process.exit();
 }
 
+//returns factorial of passed number
+function factorial(num) {
+  var rval=1;
+    for (var i = 2; i <= num; i++)
+        rval = rval * i;
+    return rval;
+}
+
 // connects to DB and calls function depending on passed -t arg
 function connectToDB() {
   mongoose.connect(process.env.DB_URL, { useNewUrlParser: true })
@@ -249,6 +259,25 @@ function updateCountries() {
           });
         }, {key: googleAPIKey});
       }
+    });
+  });
+  updateValidPoints();
+}
+
+// counts valid points and calculates how many trips should be in each reading
+function updateValidPoints() {
+  Location.find({}, function (err, locs) {
+    locs.forEach(loc => {
+      let validPoints = 0;
+      loc.points.forEach(point => {
+        if (point.onLand) {
+          validPoints++;
+        }
+      });
+      let trips = factorial(validPoints) / factorial (validPoints - 2);
+      Location.findByIdAndUpdate(loc._id, { validPoints: validPoints, trips: trips }, function (err, doc) {
+        console.log('Updated valid points for ' + doc.name + ': ' + validPoints + '. Trips: ' + trips);
+      });
     });
   });
 }
@@ -423,6 +452,7 @@ function getAllDistances() {
 }
 
 async function getDistanceMatrix(loc, points, callback) {
+  // console.log(distance.options.departure_time);
   distance.matrix(points, points, function (err, distances) {
     if (!err) {
       loc.latestDistances = distances;
@@ -465,32 +495,39 @@ async function saveDistances(loc, callback) {
       if (loc.latestDistances.rows[origin].elements[destination].status === 'OK') {
         let distance = loc.latestDistances.rows[origin].elements[destination].distance.value;
         if (distance > 0) {
-          let time = loc.latestDistances.rows[origin].elements[destination].duration_in_traffic.value;
-          if (distance > maxDistance.value) {
-            maxDistance.value = distance;
-            maxDistance.time = time;
-            maxDistance.from = loc.latestDistances.origin_addresses[origin];
-            maxDistance.to = loc.latestDistances.destination_addresses[destination];
-          } else if (minDistance.value === 0 || distance < minDistance.value) {
-            minDistance.value = distance;
-            minDistance.time = time;
-            minDistance.from = loc.latestDistances.origin_addresses[origin];
-            minDistance.to = loc.latestDistances.destination_addresses[destination];
+          try {
+            let time = loc.latestDistances.rows[origin].elements[destination].duration_in_traffic.value;
+            if (distance > maxDistance.value) {
+              maxDistance.value = distance;
+              maxDistance.time = time;
+              maxDistance.from = loc.latestDistances.origin_addresses[origin];
+              maxDistance.to = loc.latestDistances.destination_addresses[destination];
+            } else if (minDistance.value === 0 || distance < minDistance.value) {
+              minDistance.value = distance;
+              minDistance.time = time;
+              minDistance.from = loc.latestDistances.origin_addresses[origin];
+              minDistance.to = loc.latestDistances.destination_addresses[destination];
+            }
+            if (time > maxTime.value) {
+              maxTime.value = time;
+              maxTime.distance = distance;
+              maxTime.from = loc.latestDistances.origin_addresses[origin];
+              maxTime.to = loc.latestDistances.destination_addresses[destination];
+            } else if (minTime.value === 0 || time < minTime.value) {
+              minTime.value = time;
+              minTime.distance = distance;
+              minTime.from = loc.latestDistances.origin_addresses[origin];
+              minTime.to = loc.latestDistances.destination_addresses[destination];
+            }
+            validCount++;
+            totalTime += time;
+            totalDistance += distance;
+          } catch(err) {
+            console.log(err.message);
+            console.log('duration_in_traffic missing in distance matrix for ' + loc.name + '. ' + loc.latestDistances.origin_addresses[origin] + ' to ' + loc.latestDistances.destination_addresses[destination]);
+            // console.log(loc.latestDistances.rows[origin].elements[destination]);
           }
-          if (time > maxTime.value) {
-            maxTime.value = time;
-            maxTime.distance = distance;
-            maxTime.from = loc.latestDistances.origin_addresses[origin];
-            maxTime.to = loc.latestDistances.destination_addresses[destination];
-          } else if (minTime.value === 0 || time < minTime.value) {
-            minTime.value = time;
-            minTime.distance = distance;
-            minTime.from = loc.latestDistances.origin_addresses[origin];
-            minTime.to = loc.latestDistances.destination_addresses[destination];
-          }
-          validCount++;
-          totalTime += time;
-          totalDistance += distance;
+
         }
       }
     }
