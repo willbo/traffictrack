@@ -41,6 +41,41 @@ const LocationSchema = new Schema({
   country: String,
   validPoints: Number,
   trips: Number,
+  latestAverage: Number,
+  latestReading: {
+    time: Date,
+    trips: Number,
+    allTrips: Boolean,
+    averageTime: Number,
+    averageDistance: Number,
+    totalTime: Number,
+    totalDistance: Number,
+    minTime: {
+      value: Number,
+      distance: Number,
+      from: String,
+      to: String
+    },
+    maxTime: {
+      value: Number,
+      distance: Number,
+      from: String,
+      to: String
+    },
+    minDistance: {
+      value: Number,
+      time: Number,
+      from: String,
+      to: String
+    },
+    maxDistance: {
+      value: Number,
+      time: Number,
+      from: String,
+      to: String
+    },
+    raw: Schema.Types.Mixed
+  },
   points: [
     {
       name: String,
@@ -53,6 +88,7 @@ const LocationSchema = new Schema({
     {
       time: Date,
       trips: Number,
+      allTrips: Boolean,
       averageTime: Number,
       averageDistance: Number,
       totalTime: Number,
@@ -93,6 +129,8 @@ const LatLng = function (lat, lng) {
   this.lat = lat;
   this.lng = lng;
 }
+
+let readingDate;
 
 // changes time string to HH:MM:SS format
 String.prototype.toHHMMSS = function () {
@@ -427,8 +465,11 @@ function getAllDistances() {
       console.log(err);
       process.exit();
     } else {
-      const unixNow = Math.round(new Date(Date.now()) / 1000);
-      distance.departure_time(unixNow);
+      readingDate = Date.now();
+      // console.log(readingDate);
+      // const unixNow = Math.round(readingDate) / 1000;
+      // console.log(unixNow);
+      distance.departure_time(readingDate);
       async.each(locs, function (loc, callback) {
         let points = [];
         loc.points.forEach(point => {
@@ -537,8 +578,9 @@ async function saveDistances(loc, callback) {
   let averageDistance = (totalDistance / validCount).toFixed(2);
 
   let latestReading = {
-    time: new Date(Date.now()),
+    time: new Date(readingDate),
     trips: validCount,
+    allTrips: validCount === loc.trips ? true: false,
     averageTime: averageTime,
     averageDistance: averageDistance,
     totalTime: totalTime,
@@ -551,6 +593,8 @@ async function saveDistances(loc, callback) {
   }
 
   Location.findByIdAndUpdate(loc._id, {
+    latestReading: latestReading,
+    latestAverage: latestReading.averageTime,
     '$push': {
       'trafficData': latestReading
     }
@@ -579,7 +623,7 @@ function runCron() {
 
 // removes trafficData from all locations in DB, called by -t refresh
 function removeTrafficData() {
-  Location.updateMany({}, { trafficData: [] }, { multi: true }, function (err, res) {
+  Location.updateMany({}, { trafficData: [], latestReading: null, latestAverage: null }, { multi: true }, function (err, res) {
     if (err) console.log(err);
     else console.log('removed all traffic data');
     process.exit();
